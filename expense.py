@@ -60,14 +60,6 @@ def update_expense(expense_id, category, amount, date, description):
     conn.commit()
     conn.close()
 
-# Function to clear all expenses
-def clear_expenses():
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute("DELETE FROM expenses")
-    conn.commit()
-    conn.close()
-
 # Initialize database
 initialize_db()
 
@@ -96,36 +88,56 @@ st.header("Expenses Table")
 data = get_expenses()
 
 if not data.empty:
-    # Add Edit and Remove buttons
-    data["Edit"] = [st.button(f"✏️ Edit {i}", key=f"edit_{i}") for i in data["id"]]
-    data["Remove"] = [st.button(f"❌ Remove {i}", key=f"remove_{i}") for i in data["id"]]
+    edited_expense_id = None
 
-    st.dataframe(data)
+    # Create columns for table display
+    table_data = []
+    for index, row in data.iterrows():
+        edit_col, remove_col = st.columns([1, 1])  # Two columns for buttons
+        edit_clicked = edit_col.button("✏️ Edit", key=f"edit_{row['id']}")
+        remove_clicked = remove_col.button("❌ Remove", key=f"remove_{row['id']}")
 
-    # Handling Edit and Remove
-    for i in data["id"]:
-        if st.session_state.get(f"edit_{i}", False):
-            expense = data[data["id"] == i].iloc[0]
-            new_category = st.selectbox("Edit Category", category_options, index=category_options.index(expense["category"]))
-            new_amount = st.number_input("Edit Amount", min_value=0.0, step=0.01, value=expense["amount"])
-            new_date = st.date_input("Edit Date", value=datetime.strptime(expense["date"], '%Y-%m-%d'))
-            new_description = st.text_area("Edit Description", value=expense["description"])
+        if edit_clicked:
+            edited_expense_id = row["id"]
 
-            if st.button("Update Expense"):
-                update_expense(i, new_category, new_amount, new_date.strftime('%Y-%m-%d'), new_description)
-                st.success("Expense updated successfully!")
-                st.rerun()
-
-        if st.session_state.get(f"remove_{i}", False):
-            delete_expense(i)
+        if remove_clicked:
+            delete_expense(row["id"])
             st.success("Expense removed successfully!")
             st.rerun()
+
+        table_data.append({
+            "ID": row["id"],
+            "Category": row["category"],
+            "Amount": row["amount"],
+            "Date": row["date"],
+            "Description": row["description"]
+        })
+
+    # Display table
+    st.dataframe(pd.DataFrame(table_data))
+
+    # Edit expense form
+    if edited_expense_id is not None:
+        st.subheader("Edit Expense")
+
+        expense_to_edit = data[data["id"] == edited_expense_id].iloc[0]
+
+        new_category = st.selectbox("Category", category_options, index=category_options.index(expense_to_edit["category"]))
+        new_amount = st.number_input("Amount", min_value=0.0, step=0.01, value=expense_to_edit["amount"])
+        new_date = st.date_input("Date", value=datetime.strptime(expense_to_edit["date"], '%Y-%m-%d'))
+        new_description = st.text_area("Description", value=expense_to_edit["description"])
+
+        if st.button("Update Expense"):
+            update_expense(edited_expense_id, new_category, new_amount, new_date.strftime('%Y-%m-%d'), new_description)
+            st.success("Expense updated successfully!")
+            st.rerun()
+
 else:
     st.info("No expenses recorded.")
 
 # Clear All Expenses Button
 if st.button("Clear Data"):
-    clear_expenses()
+    delete_expense("all")  # Clears all expenses
     st.success("All expenses cleared!")
     st.rerun()
 
