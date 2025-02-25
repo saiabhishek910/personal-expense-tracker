@@ -1,176 +1,115 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
-import matplotlib.pyplot as plt
-import seaborn as sns
-from datetime import datetime
 
-# Database connection
-DB_NAME = "expenses.db"
-
-# Function to initialize database
-def initialize_db():
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS expenses (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            category TEXT,
-            amount REAL,
-            date TEXT,
-            description TEXT
-        )
-    """)
+# Database setup
+def init_db():
+    conn = sqlite3.connect("expenses.db")
+    cursor = conn.cursor()
+    cursor.execute('''CREATE TABLE IF NOT EXISTS expenses (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        category TEXT,
+                        amount REAL,
+                        date TEXT,
+                        description TEXT)''')
     conn.commit()
     conn.close()
 
-# Function to add expense to database
-def add_expense(category, amount, date, description):
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute("INSERT INTO expenses (category, amount, date, description) VALUES (?, ?, ?, ?)", 
-              (category, amount, date, description))
-    conn.commit()
-    conn.close()
-
-# Function to retrieve all expenses
-def get_expenses():
-    conn = sqlite3.connect(DB_NAME)
+# Function to load data from database
+def load_data():
+    conn = sqlite3.connect("expenses.db")
     df = pd.read_sql("SELECT * FROM expenses", conn)
     conn.close()
     return df
 
-# Function to delete an expense
-def delete_expense(expense_id):
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute("DELETE FROM expenses WHERE id=?", (expense_id,))
+# Function to add expense
+def add_expense(category, amount, date, description):
+    conn = sqlite3.connect("expenses.db")
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO expenses (category, amount, date, description) VALUES (?, ?, ?, ?)",
+                   (category, amount, date, description))
     conn.commit()
     conn.close()
 
 # Function to update an expense
 def update_expense(expense_id, category, amount, date, description):
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute("""
-        UPDATE expenses
-        SET category=?, amount=?, date=?, description=?
-        WHERE id=?
-    """, (category, amount, date, description, expense_id))
+    conn = sqlite3.connect("expenses.db")
+    cursor = conn.cursor()
+    cursor.execute("UPDATE expenses SET category=?, amount=?, date=?, description=? WHERE id=?",
+                   (category, amount, date, description, expense_id))
+    conn.commit()
+    conn.close()
+
+# Function to delete an expense
+def delete_expense(expense_id):
+    conn = sqlite3.connect("expenses.db")
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM expenses WHERE id=?", (expense_id,))
     conn.commit()
     conn.close()
 
 # Initialize database
-initialize_db()
+init_db()
 
-# Page Title
-st.title("Personal Expense Tracker (Database Version)")
+# Streamlit UI
+st.title("Personal Expense Tracker")
 
-# Sidebar Section - Add Expense
+# Sidebar - Add Expense
 with st.sidebar:
     st.header("Add Expense")
-
-    category_options = ["Food", "Transport", "Entertainment", "Utilities", "Healthcare", "Other"]
-    category = st.selectbox("Category", category_options)
+    category = st.selectbox("Category", ["Food", "Transport", "Entertainment", "Utilities", "Healthcare", "Other"])
     amount = st.number_input("Amount", min_value=0.0, step=0.01)
     date = st.date_input("Date")
     description = st.text_area("Description")
-
     if st.button("Add Expense"):
         if category and amount > 0 and description:
-            add_expense(category, amount, date.strftime('%Y-%m-%d'), description)
+            add_expense(category, amount, date, description)
             st.success("Expense added successfully!")
-            st.rerun()
+            st.experimental_rerun()
+        else:
+            st.error("Please fill in all fields.")
 
-# Main Section - Display Table
-st.header("Expenses Table")
+# Load data
+expenses = load_data()
 
-data = get_expenses()
+# Display Expenses Table
+st.header("Expense Records")
+if not expenses.empty:
+    for index, row in expenses.iterrows():
+        col1, col2, col3, col4, col5, col6, col7 = st.columns([1, 2, 2, 2, 3, 1, 1])
+        col1.write(row['id'])
+        col2.write(row['category'])
+        col3.write(row['amount'])
+        col4.write(row['date'])
+        col5.write(row['description'])
+        if col6.button("Edit", key=f"edit_{row['id']}"):
+            st.session_state['edit_id'] = row['id']
+            st.session_state['edit_category'] = row['category']
+            st.session_state['edit_amount'] = row['amount']
+            st.session_state['edit_date'] = row['date']
+            st.session_state['edit_description'] = row['description']
+        if col7.button("Remove", key=f"remove_{row['id']}"):
+            delete_expense(row['id'])
+            st.experimental_rerun()
 
-if not data.empty:
-    edited_expense_id = None
+# Edit Expense Section
+if 'edit_id' in st.session_state:
+    st.header("Edit Expense")
+    new_category = st.selectbox("Category", ["Food", "Transport", "Entertainment", "Utilities", "Healthcare", "Other"],
+                                index=["Food", "Transport", "Entertainment", "Utilities", "Healthcare", "Other"].index(st.session_state['edit_category']))
+    new_amount = st.number_input("Amount", min_value=0.0, step=0.01, value=st.session_state['edit_amount'])
+    new_date = st.date_input("Date", value=pd.to_datetime(st.session_state['edit_date']))
+    new_description = st.text_area("Description", value=st.session_state['edit_description'])
+    if st.button("Update Expense"):
+        update_expense(st.session_state['edit_id'], new_category, new_amount, new_date, new_description)
+        del st.session_state['edit_id']
+        st.experimental_rerun()
 
-    # Create columns for table display
-    table_data = []
-    for index, row in data.iterrows():
-        edit_col, remove_col = st.columns([1, 1])  # Two columns for buttons
-        edit_clicked = edit_col.button("✏️ Edit", key=f"edit_{row['id']}")
-        remove_clicked = remove_col.button("❌ Remove", key=f"remove_{row['id']}")
-
-        if edit_clicked:
-            edited_expense_id = row["id"]
-
-        if remove_clicked:
-            delete_expense(row["id"])
-            st.success("Expense removed successfully!")
-            st.rerun()
-
-        table_data.append({
-            "ID": row["id"],
-            "Category": row["category"],
-            "Amount": row["amount"],
-            "Date": row["date"],
-            "Description": row["description"]
-        })
-
-    # Display table
-    st.dataframe(pd.DataFrame(table_data))
-
-    # Edit expense form
-    if edited_expense_id is not None:
-        st.subheader("Edit Expense")
-
-        expense_to_edit = data[data["id"] == edited_expense_id].iloc[0]
-
-        new_category = st.selectbox("Category", category_options, index=category_options.index(expense_to_edit["category"]))
-        new_amount = st.number_input("Amount", min_value=0.0, step=0.01, value=expense_to_edit["amount"])
-        new_date = st.date_input("Date", value=datetime.strptime(expense_to_edit["date"], '%Y-%m-%d'))
-        new_description = st.text_area("Description", value=expense_to_edit["description"])
-
-        if st.button("Update Expense"):
-            update_expense(edited_expense_id, new_category, new_amount, new_date.strftime('%Y-%m-%d'), new_description)
-            st.success("Expense updated successfully!")
-            st.rerun()
-
-else:
-    st.info("No expenses recorded.")
-
-# Clear All Expenses Button
-if st.button("Clear Data"):
-    delete_expense("all")  # Clears all expenses
-    st.success("All expenses cleared!")
-    st.rerun()
-
-# Visualization Section
-st.header("Visualize Expenses")
-
-if st.button("Visualize"):
-    if not data.empty:
-        # Expense by Category
-        st.subheader("Expense by Category")
-        category_expense = data.groupby("category")["amount"].sum().reset_index()
-        fig1, ax1 = plt.subplots()
-        ax1.pie(category_expense["amount"], labels=category_expense["category"], autopct="%1.1f%%", startangle=90)
-        ax1.axis("equal")
-        st.pyplot(fig1)
-
-        # Monthly Expense Trend
-        st.subheader("Monthly Expense Trend")
-        data["date"] = pd.to_datetime(data["date"])
-        data["month"] = data["date"].dt.to_period("M").astype(str)
-        monthly_expense = data.groupby("month")["amount"].sum().reset_index()
-        fig2, ax2 = plt.subplots()
-        sns.lineplot(data=monthly_expense, x="month", y="amount", marker="o", ax=ax2)
-        ax2.set_title("Monthly Expense Trend")
-        plt.xticks(rotation=45)
-        st.pyplot(fig2)
-
-        # Bar Chart of Categories
-        st.subheader("Bar Chart of Expenses by Category")
-        fig3, ax3 = plt.subplots()
-        sns.barplot(data=category_expense, x="category", y="amount", palette="viridis", ax=ax3)
-        ax3.set_title("Expenses by Category")
-        plt.xticks(rotation=45)
-        st.pyplot(fig3)
-    else:
-        st.warning("No data available to visualize. Please add expenses first.")
+# Clear all data button
+if st.button("Clear All Data"):
+    conn = sqlite3.connect("expenses.db")
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM expenses")
+    conn.commit()
+    conn.close()
+    st.experimental_rerun()
