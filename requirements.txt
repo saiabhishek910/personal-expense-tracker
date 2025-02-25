@@ -1,4 +1,6 @@
 openpyxl
+streamlit
+sqlalchemy
 matplotlib
 seaborn
 sqlite3
