@@ -68,14 +68,17 @@ with st.sidebar:
 st.header("Expenses Table")
 data = load_data_from_excel()
 if not data.empty:
-    for i, row in data.iterrows():
-        col1, col2, col3 = st.columns([8, 1, 1])
-        col1.write(row.to_dict())
-        if col2.button("Edit", key=f"edit_{i}"):
+    data["Edit"] = [st.button(f"✏️ Edit {i}", key=f"edit_{i}") for i in data.index]
+    data["Remove"] = [st.button(f"❌ Remove {i}", key=f"remove_{i}") for i in data.index]
+    st.dataframe(data)
+
+    for i in data.index:
+        if st.session_state.get(f"edit_{i}", False):
             st.session_state["edit_index"] = i
-        if col3.button("Remove", key=f"remove_{i}"):
+        if st.session_state.get(f"remove_{i}", False):
             remove_data_from_excel(i)
             st.rerun()
+
 
     
     if "edit_index" in st.session_state:
