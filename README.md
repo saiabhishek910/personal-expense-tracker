@@ -1,5 +1,4 @@
 # Personal Expense Tracker
-# Personal Expense Tracker
 
 ## Overview
 The **Personal Expense Tracker** is a Streamlit-based web application that helps users track and visualize their expenses efficiently. The application allows users to log their daily expenses, categorize them, and analyze spending patterns through interactive visualizations.
@@ -36,7 +35,7 @@ The **Personal Expense Tracker** is a Streamlit-based web application that helps
    ```
 3. Run the application:
    ```sh
-   streamlit run app.py
+   streamlit run expense.py
    ```
 
 ## How to Use
@@ -46,11 +45,13 @@ The **Personal Expense Tracker** is a Streamlit-based web application that helps
 4. **Analyze Spending:** Click "Visualize" to see expense trends using pie, line, and bar charts.
 
 ## Screenshots
+![image](https://github.com/user-attachments/assets/aaa1f7cd-505c-4d45-9b5b-50d29567f89e)
+![image](https://github.com/user-attachments/assets/0112cadf-2e36-4cfb-a234-9172191ffdde)
 
 
 ## License
 This project is licensed under the MIT License.
 
 ## Author
-[Your Name](https://github.com/yourusername)
+[Abhishek Kollipara](https://github.com/saiabhishek910)
 
