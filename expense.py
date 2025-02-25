@@ -48,7 +48,6 @@ def clear_all_data():
     conn.commit()
     conn.close()
 
-
 initialize_database()
 
 st.title("Personal Expense Tracker")
@@ -76,34 +75,35 @@ if not data.empty:
         clear_all_data()
         st.rerun()
 
-
-# Data Visualization Section
+# Visualization Section
 st.header("Expense Analysis")
+if st.button("Visualize"):
+    if not data.empty:
+        data['Month'] = data['Date'].dt.to_period('M')  # Convert date to month period
 
-if not data.empty:
-    # 1. Expenses by Category (Pie Chart)
-    category_expenses = data.groupby('Category')['Amount'].sum()
-    fig1, ax1 = plt.subplots()
-    ax1.pie(category_expenses, labels=category_expenses.index, autopct='%1.1f%%', startangle=90)
-    ax1.axis('equal')
-    st.pyplot(fig1)
+        # 1. Expenses by Category (Pie Chart)
+        category_expenses = data.groupby('Category')['Amount'].sum()
+        fig1, ax1 = plt.subplots()
+        ax1.pie(category_expenses, labels=category_expenses.index, autopct='%1.1f%%', startangle=90)
+        ax1.axis('equal')
+        st.pyplot(fig1)
 
-    # 2. Expenses Over Time (Line Chart)
-    daily_expenses = data.groupby(data['Date'].dt.date)['Amount'].sum()
-    fig2, ax2 = plt.subplots()
-    ax2.plot(daily_expenses.index, daily_expenses.values)
-    ax2.set_xlabel("Date")
-    ax2.set_ylabel("Total Expenses")
-    ax2.set_title("Daily Expenses")
-    fig2.autofmt_xdate()
-    st.pyplot(fig2)
+        # 2. Monthly Expenses (Line Chart)
+        monthly_expenses = data.groupby('Month')['Amount'].sum()
+        fig2, ax2 = plt.subplots()
+        ax2.plot(monthly_expenses.index.astype(str), monthly_expenses.values, marker='o')
+        ax2.set_xlabel("Month")
+        ax2.set_ylabel("Total Expenses")
+        ax2.set_title("Monthly Expense Analysis")
+        ax2.grid(True)
+        st.pyplot(fig2)
 
-    # 3. Distribution of Expenses (Histogram)
-    fig3, ax3 = plt.subplots()
-    sns.histplot(data['Amount'], kde=True, ax=ax3)
-    ax3.set_xlabel("Expense Amount")
-    ax3.set_title("Distribution of Expense Amounts")
-    st.pyplot(fig3)
-
-else:
-    st.write("No expenses recorded yet for visualization.")
+        # 3. Expenses by Category (Bar Chart)
+        fig3, ax3 = plt.subplots()
+        sns.barplot(x=category_expenses.index, y=category_expenses.values, ax=ax3)
+        ax3.set_xlabel("Category")
+        ax3.set_ylabel("Total Expenses")
+        ax3.set_title("Expenses by Category")
+        st.pyplot(fig3)
+    else:
+        st.write("No expenses recorded yet for visualization.")
