@@ -1,3 +1,5 @@
 openpyxl
 matplotlib
 seaborn
+sqlite3
+pandas
