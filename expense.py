@@ -41,24 +41,6 @@ def add_data_to_database(category, amount, date, description):
     conn.commit()
     conn.close()
 
-def update_data_in_database(id, category, amount, date, description):
-    conn = sqlite3.connect(DATABASE_NAME)
-    cursor = conn.cursor()
-    cursor.execute(f"""
-        UPDATE {TABLE_NAME}
-        SET Category = ?, Amount = ?, Date = ?, Description = ?
-        WHERE id = ?
-    """, (category, amount, date, description, id))
-    conn.commit()
-    conn.close()
-
-def remove_data_from_database(id):
-    conn = sqlite3.connect(DATABASE_NAME)
-    cursor = conn.cursor()
-    cursor.execute(f"DELETE FROM {TABLE_NAME} WHERE id = ?", (id,))
-    conn.commit()
-    conn.close()
-
 def clear_all_data():
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
@@ -88,31 +70,9 @@ data = load_data_from_database()
 
 if not data.empty:
     data['Date'] = pd.to_datetime(data['Date'])
-    st.dataframe(data)
+    st.dataframe(data)  # Display the table directly
 
-    for i, row in data.iterrows():
-        col1, col2, col3 = st.columns([8, 1, 1])
-        if col2.button("Edit", key=f"edit_{row['id']}"):
-            st.session_state["edit_id"] = row['id']
-        if col3.button("Remove", key=f"remove_{row['id']}"):
-            remove_data_from_database(row['id'])
-            st.rerun()
-
-    if "edit_id" in st.session_state:
-        edit_id = st.session_state["edit_id"]
-        edit_row = data[data['id'] == edit_id].iloc[0]
-
-        with st.expander("Edit Expense"):
-            category_edit = st.selectbox("Category", CATEGORY_OPTIONS, index=CATEGORY_OPTIONS.index(edit_row["Category"]))
-            date_edit = st.date_input("Date", edit_row["Date"])
-            amount_edit = st.number_input("Amount", min_value=0.0, step=0.01, value=edit_row["Amount"])
-            description_edit = st.text_area("Description", edit_row["Description"])
-            if st.button("Update Expense"):
-                update_data_in_database(edit_id, category_edit, amount_edit, date_edit, description_edit)
-                del st.session_state["edit_id"]
-                st.rerun()
-
-    if st.button("Clear Data"):
+    if st.button("Clear Data"):  # Only Clear Data button
         clear_all_data()
         st.rerun()
 
