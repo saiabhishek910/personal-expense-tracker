@@ -1,159 +1,162 @@
 import streamlit as st
 import pandas as pd
-import os
-from openpyxl import Workbook, load_workbook
+import sqlite3
 import matplotlib.pyplot as plt
 import seaborn as sns
+from datetime import datetime
 
-# Constants
-FILE_NAME = "expense.xlsx"
-REQUIRED_COLUMNS = ["Category", "Amount", "Date", "Description"]
+# Database connection
+DB_NAME = "expenses.db"
 
-# Function to initialize Excel file if it doesn't exist
-def initialize_excel_file():
-    if not os.path.exists(FILE_NAME):
-        wb = Workbook()
-        ws = wb.active
-        ws.append(REQUIRED_COLUMNS)
-        wb.save(FILE_NAME)
+# Function to initialize database
+def initialize_db():
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS expenses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            category TEXT,
+            amount REAL,
+            date TEXT,
+            description TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
 
-# Function to load data from the Excel file and clean empty rows
-def load_data_from_excel():
-    initialize_excel_file()
-    data = pd.read_excel(FILE_NAME)
-    
-    # Remove rows where any of the required columns are NaN
-    data = data.dropna(subset=REQUIRED_COLUMNS)
-    
-    # Reset the index after dropping rows
-    data = data.reset_index(drop=True)
-    
-    return data
+# Function to add expense to database
+def add_expense(category, amount, date, description):
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("INSERT INTO expenses (category, amount, date, description) VALUES (?, ?, ?, ?)", 
+              (category, amount, date, description))
+    conn.commit()
+    conn.close()
 
-# Function to add data to the Excel file
-def add_data_to_excel(category, amount, date, description):
-    initialize_excel_file()
-    # Use a temporary file to handle potential locks
-    temp_file = "temp_expense.xlsx"
-    
-    try:
-        # Load the workbook
-        wb = load_workbook(FILE_NAME)
-        ws = wb.active
-        
-        # Append new data
-        ws.append([category, amount, date, description])
-        
-        # Save to a temporary file and replace the original file
-        wb.save(temp_file)
-        os.replace(temp_file, FILE_NAME)
-    except PermissionError:
-        st.error("The file 'expense.xlsx' is currently open. Please close it and try again.")
-    except Exception as e:
-        st.error(f"An error occurred: {e}")
-    finally:
-        # Clean up temporary file if it exists
-        if os.path.exists(temp_file):
-            os.remove(temp_file)
+# Function to retrieve all expenses
+def get_expenses():
+    conn = sqlite3.connect(DB_NAME)
+    df = pd.read_sql("SELECT * FROM expenses", conn)
+    conn.close()
+    return df
 
-# Initialize Excel file
-initialize_excel_file()
+# Function to delete an expense
+def delete_expense(expense_id):
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("DELETE FROM expenses WHERE id=?", (expense_id,))
+    conn.commit()
+    conn.close()
+
+# Function to update an expense
+def update_expense(expense_id, category, amount, date, description):
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("""
+        UPDATE expenses
+        SET category=?, amount=?, date=?, description=?
+        WHERE id=?
+    """, (category, amount, date, description, expense_id))
+    conn.commit()
+    conn.close()
+
+# Function to clear all expenses
+def clear_expenses():
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("DELETE FROM expenses")
+    conn.commit()
+    conn.close()
+
+# Initialize database
+initialize_db()
 
 # Page Title
-st.title("Personal Expense Tracker")
+st.title("Personal Expense Tracker (Database Version)")
 
-# Sidebar Section
+# Sidebar Section - Add Expense
 with st.sidebar:
-    st.header("Add Section")
-    
-    # Category Dropdown
+    st.header("Add Expense")
+
     category_options = ["Food", "Transport", "Entertainment", "Utilities", "Healthcare", "Other"]
-    category = st.selectbox("Select Category", category_options)
-    
-    # Input fields for manual entry
-    date = st.date_input("Date")
+    category = st.selectbox("Category", category_options)
     amount = st.number_input("Amount", min_value=0.0, step=0.01)
+    date = st.date_input("Date")
     description = st.text_area("Description")
-    
-    # Add Expense Button
+
     if st.button("Add Expense"):
         if category and amount > 0 and description:
-            add_data_to_excel(category, amount, date, description)
+            add_expense(category, amount, date.strftime('%Y-%m-%d'), description)
             st.success("Expense added successfully!")
-        else:
-            st.error("Please fill in all fields before adding an expense.")
-    
-    # OR Separator
-    st.markdown("### OR ###")
-    
-    # File Upload Section
-    st.subheader("Upload Expenses File")
-    uploaded_file = st.file_uploader("Upload your file (CSV or Excel)", type=["csv", "xlsx"])
-    
-    if uploaded_file:
-        try:
-            # Read the uploaded file
-            if uploaded_file.name.endswith(".csv"):
-                uploaded_data = pd.read_csv(uploaded_file)
-            else:
-                uploaded_data = pd.read_excel(uploaded_file)
-            
-            # Check for required columns
-            if all(col in uploaded_data.columns for col in REQUIRED_COLUMNS):
-                # Clean the uploaded data by dropping empty rows
-                uploaded_data = uploaded_data.dropna(subset=REQUIRED_COLUMNS)
-                uploaded_data = uploaded_data.reset_index(drop=True)
-                
-                st.session_state["uploaded_data"] = uploaded_data
-                st.success("File uploaded successfully!")
-            else:
-                st.error(f"The uploaded file must contain the following columns: {REQUIRED_COLUMNS}")
-        except Exception as e:
-            st.error(f"Error reading the file: {e}")
+            st.rerun()
 
-# Main Section
+# Main Section - Display Table
 st.header("Expenses Table")
 
-# Load data from file or session state
-if "uploaded_data" in st.session_state:
-    # Display uploaded file data
-    data = st.session_state["uploaded_data"]
-    st.info("Showing data from the uploaded file.")
-else:
-    # Load data from the Excel file
-    data = load_data_from_excel()
-    st.info("Showing data from the saved file.")
+data = get_expenses()
 
-# Display the expenses table
-st.dataframe(data, use_container_width=True)
+if not data.empty:
+    # Add Edit and Remove buttons
+    data["Edit"] = [st.button(f"✏️ Edit {i}", key=f"edit_{i}") for i in data["id"]]
+    data["Remove"] = [st.button(f"❌ Remove {i}", key=f"remove_{i}") for i in data["id"]]
+
+    st.dataframe(data)
+
+    # Handling Edit and Remove
+    for i in data["id"]:
+        if st.session_state.get(f"edit_{i}", False):
+            expense = data[data["id"] == i].iloc[0]
+            new_category = st.selectbox("Edit Category", category_options, index=category_options.index(expense["category"]))
+            new_amount = st.number_input("Edit Amount", min_value=0.0, step=0.01, value=expense["amount"])
+            new_date = st.date_input("Edit Date", value=datetime.strptime(expense["date"], '%Y-%m-%d'))
+            new_description = st.text_area("Edit Description", value=expense["description"])
+
+            if st.button("Update Expense"):
+                update_expense(i, new_category, new_amount, new_date.strftime('%Y-%m-%d'), new_description)
+                st.success("Expense updated successfully!")
+                st.rerun()
+
+        if st.session_state.get(f"remove_{i}", False):
+            delete_expense(i)
+            st.success("Expense removed successfully!")
+            st.rerun()
+else:
+    st.info("No expenses recorded.")
+
+# Clear All Expenses Button
+if st.button("Clear Data"):
+    clear_expenses()
+    st.success("All expenses cleared!")
+    st.rerun()
 
 # Visualization Section
 st.header("Visualize Expenses")
+
 if st.button("Visualize"):
     if not data.empty:
         # Expense by Category
         st.subheader("Expense by Category")
-        category_expense = data.groupby("Category")["Amount"].sum().reset_index()
+        category_expense = data.groupby("category")["amount"].sum().reset_index()
         fig1, ax1 = plt.subplots()
-        ax1.pie(category_expense["Amount"], labels=category_expense["Category"], autopct="%1.1f%%", startangle=90)
+        ax1.pie(category_expense["amount"], labels=category_expense["category"], autopct="%1.1f%%", startangle=90)
         ax1.axis("equal")
         st.pyplot(fig1)
-        
+
         # Monthly Expense Trend
         st.subheader("Monthly Expense Trend")
-        data["Date"] = pd.to_datetime(data["Date"])
-        data["Month"] = data["Date"].dt.to_period("M").astype(str)
-        monthly_expense = data.groupby("Month")["Amount"].sum().reset_index()
+        data["date"] = pd.to_datetime(data["date"])
+        data["month"] = data["date"].dt.to_period("M").astype(str)
+        monthly_expense = data.groupby("month")["amount"].sum().reset_index()
         fig2, ax2 = plt.subplots()
-        sns.lineplot(data=monthly_expense, x="Month", y="Amount", marker="o", ax=ax2)
+        sns.lineplot(data=monthly_expense, x="month", y="amount", marker="o", ax=ax2)
         ax2.set_title("Monthly Expense Trend")
         plt.xticks(rotation=45)
         st.pyplot(fig2)
-        
+
         # Bar Chart of Categories
         st.subheader("Bar Chart of Expenses by Category")
         fig3, ax3 = plt.subplots()
-        sns.barplot(data=category_expense, x="Category", y="Amount", palette="viridis", ax=ax3)
+        sns.barplot(data=category_expense, x="category", y="amount", palette="viridis", ax=ax3)
         ax3.set_title("Expenses by Category")
         plt.xticks(rotation=45)
         st.pyplot(fig3)
