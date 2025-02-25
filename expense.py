@@ -62,7 +62,8 @@ with st.sidebar:
         if category and amount > 0 and description:
             add_data_to_excel(category, amount, date, description)
             st.success("Expense added successfully!")
-            st.experimental_rerun()
+            st.rerun()
+
 
 st.header("Expenses Table")
 data = load_data_from_excel()
@@ -74,7 +75,8 @@ if not data.empty:
             st.session_state["edit_index"] = i
         if col3.button("Remove", key=f"remove_{i}"):
             remove_data_from_excel(i)
-            st.experimental_rerun()
+            st.rerun()
+
     
     if "edit_index" in st.session_state:
         i = st.session_state["edit_index"]
@@ -86,8 +88,10 @@ if not data.empty:
             if st.button("Update Expense"):
                 update_data_in_excel(i, category_edit, amount_edit, date_edit, description_edit)
                 del st.session_state["edit_index"]
-                st.experimental_rerun()
+                st.rerun()
+
     
     if st.button("Clear Data"):
         clear_all_data()
-        st.experimental_rerun()
+        st.rerun()
+
